@@ -1,0 +1,15 @@
+[package]
+name = "loadbalancer-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+log = "0.4"
+simple_logger = "5.0.0"
+tokio = { version = "1.47.1", features = ["net", "io-util"] }
+pumpkin-protocol = { git = "https://github.com/Pumpkin-MC/Pumpkin", package = "pumpkin-protocol", default-features = false, features = ["serverbound", "clientbound"]}
+pumpkin-data = { git = "https://github.com/Pumpkin-MC/Pumpkin", package = "pumpkin-data"}
+
+crossbeam = "0.8.4"
+uuid = "1.17.0"
+rand = "0.9"
