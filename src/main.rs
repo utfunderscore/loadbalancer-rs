@@ -8,7 +8,10 @@ use log::info;
 use std::error::Error;
 use std::fs::write;
 use std::path::Path;
+use std::sync::{Arc};
 use tokio::net::TcpListener;
+use tokio::sync::Mutex;
+use crate::finder::ServerFinder;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -21,23 +24,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     let config = Config::from_yaml_file(Path::new("config.yaml"))?;
 
-    let mut server_finder = finder::get_server_finder(config)?;
+    let server_finder: Arc<Mutex<Box<dyn ServerFinder>>> = Arc::new(Mutex::new(finder::get_server_finder(config)?));
 
     let listener = TcpListener::bind("0.0.0.0:25565").await?;
 
     loop {
         let (stream, addr) = listener.accept().await?;
-
-        let server = server_finder.find_server()?;
+        let server_finder = server_finder.clone();
 
         tokio::spawn(async move {
             let (read, write) = stream.into_split();
             info!("Accepted connection from {}", addr);
 
-            let mut connection = Connection::new(read, write, server);
+            let mut connection = Connection::new(read, write, server_finder);
 
             loop {
-                if connection.process_packets().await {
+                if !connection.process_packets().await {
                     info!("Connection terminated");
                     break;
                 }

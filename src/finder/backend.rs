@@ -1,20 +1,15 @@
 use crate::connection::Connection;
 use pumpkin_protocol::{
-    codec::var_int::VarInt,
-    ConnectionState,
-    ClientPacket,
-    java::client::status::CStatusResponse,
-    java::packet_decoder::TCPNetworkDecoder,
-    java::packet_encoder::TCPNetworkEncoder,
-    java::server::handshake::SHandShake,
-    java::server::status::SStatusRequest,
-    packet::Packet
+    ClientPacket, ConnectionState, ServerPacket, StatusResponse, codec::var_int::VarInt,
+    java::client::status::CStatusResponse, java::packet_decoder::TCPNetworkDecoder,
+    java::packet_encoder::TCPNetworkEncoder, java::server::handshake::SHandShake,
+    java::server::status::SStatusRequest, packet::Packet,
 };
 use std::error::Error;
 use tokio::{
     io::{BufReader, BufWriter},
     net::TcpStream,
-    net::tcp::OwnedWriteHalf
+    net::tcp::OwnedWriteHalf,
 };
 
 #[derive(Debug, Clone)]
@@ -28,10 +23,10 @@ impl MinecraftServer {
         MinecraftServer { hostname, port }
     }
 
-    pub async fn test_connection(&self) -> bool {
+    pub async fn get_playercount(&self) -> Option<u16> {
         let stream = TcpStream::connect((self.hostname.clone(), self.port)).await;
         let Ok(stream) = stream else {
-            return false;
+            return None;
         };
 
         let (reader, writer) = stream.into_split();
@@ -47,23 +42,32 @@ impl MinecraftServer {
         };
 
         let Ok(()) = Self::send_packet(&mut stream_writer, &handshake_packet).await else {
-            return false;
+            return None;
         };
 
         let Ok(()) = Self::send_packet(&mut stream_writer, &SStatusRequest).await else {
-            return false;
+            return None;
         };
 
         let packet = stream_reader.get_raw_packet().await.ok();
         let Some(packet) = packet else {
-            return false;
+            return None;
         };
 
         if packet.id != CStatusResponse::PACKET_ID {
-            return false;
+            return None;
         }
+        let buffer = &packet.payload[..];
 
-        true
+        let packet = CStatusResponse::read(buffer);
+        let Ok(packet) = packet else {
+            return None;
+        };
+
+        // let response = serde_json::from_str(packet.json_response);
+
+        // Waiting on PR to be merged
+        None
     }
 
     async fn send_packet<PACKET>(
@@ -92,11 +96,9 @@ mod tests {
         let backend = MinecraftServer::new("localhost".to_string(), 25565);
 
         let result = timeout(Duration::from_secs(5), async {
-            backend.test_connection().await
+            backend.get_playercount().await
         })
         .await
         .unwrap();
-
-        println!("{}", result);
     }
 }
