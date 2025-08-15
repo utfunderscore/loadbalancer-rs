@@ -3,10 +3,18 @@ use crate::config::{Algorithm, Config, Mode, StaticConfig};
 use crate::finder::backend::MinecraftServer;
 use async_trait::async_trait;
 use std::error::Error;
+use std::future;
+use std::time::Duration;
+use futures::future::join_all;
+use tokio::time::error::Elapsed;
+use tokio::time::timeout;
 
 pub mod backend;
 
+#[async_trait]
 pub trait ServerFinder: Send + Sync {
+    async fn get_player_count(&self) -> u64;
+
     fn find_server(&mut self) -> Result<MinecraftServer, Box<dyn Error>>;
 }
 
@@ -43,6 +51,13 @@ impl StaticServerFiner {
 
 #[async_trait]
 impl ServerFinder for StaticServerFiner {
+    async fn get_player_count(&self) -> u64 {
+        let futures: Vec<_> = self.servers.iter().map(|x| async move {
+            timeout(Duration::from_secs(5), x.get_player_count()).await.ok().flatten().unwrap_or(0)
+        }).collect();
+
+        join_all(futures).await.iter().sum()
+    }
 
     fn find_server(&mut self) -> Result<MinecraftServer, Box<dyn Error>> {
         match self.mode {
