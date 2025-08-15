@@ -118,6 +118,7 @@ impl Connection {
     }
 
     async fn handle_status_packet(&mut self, packet: &mut RawPacket) -> Result<(), Box<dyn Error>> {
+
         let bytebuf = &packet.payload[..];
         debug!("Handling status packet with id {}", packet.id);
 
@@ -141,7 +142,7 @@ impl Connection {
                 };
 
                 let response = serde_json::to_string(&response)?;
-                return self.send_packet(&CStatusResponse::new(&response)).await;
+                return self.send_packet(&CStatusResponse::new(response)).await;
             }
             SStatusPingRequest::PACKET_ID => {
                 let payload = SStatusPingRequest::read(bytebuf)?.payload;

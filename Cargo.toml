@@ -7,8 +7,9 @@ edition = "2024"
 log = "0.4"
 simple_logger = "5.0.0"
 tokio = { version = "1.47.1", features = ["net", "io-util"] }
-pumpkin-protocol = { git = "https://github.com/Pumpkin-MC/Pumpkin", package = "pumpkin-protocol", default-features = false, features = ["serverbound", "clientbound"]}
-pumpkin-data = { git = "https://github.com/Pumpkin-MC/Pumpkin", package = "pumpkin-data"}
+pumpkin-protocol = { git = "https://github.com/utfunderscore/Pumpkin", package = "pumpkin-protocol", default-features = false, features = ["serverbound", "clientbound"]}
+pumpkin-data = { git = "https://github.com/utfunderscore/Pumpkin", package = "pumpkin-data"}
+pumpkin-macros = { git = "https://github.com/utfunderscore/Pumpkin", package = "pumpkin-macros"}
 
 crossbeam = "0.8.4"
 uuid = "1.17.0"
@@ -20,3 +21,5 @@ thiserror = "2.0.14"
 serde_yaml = "0.9.34+deprecated"
 reqwest = "0.12.23"
 foyer = "0.18.0"
+futures = "0.3.31"
+async-trait = "0.1.88"

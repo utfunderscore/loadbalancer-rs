@@ -1,6 +1,7 @@
 use crate::config::Algorithm::RoundRobin;
 use crate::config::{Algorithm, Config, Mode, StaticConfig};
 use crate::finder::backend::MinecraftServer;
+use async_trait::async_trait;
 use std::error::Error;
 
 pub mod backend;
@@ -40,7 +41,9 @@ impl StaticServerFiner {
     }
 }
 
+#[async_trait]
 impl ServerFinder for StaticServerFiner {
+
     fn find_server(&mut self) -> Result<MinecraftServer, Box<dyn Error>> {
         match self.mode {
             RoundRobin => {
