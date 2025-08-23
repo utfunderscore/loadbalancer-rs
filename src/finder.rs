@@ -46,6 +46,8 @@ impl StaticServerFiner {
             }
         }
 
+        println!("{:?}", servers);
+
         StaticServerFiner {
             servers,
             mode: config.algorithm,
@@ -93,9 +95,11 @@ impl ServerFinder for StaticServerFiner {
                     self.last_index = index;
                 }
                 println!("after: {}", self.last_index);
+                println!("{:?}", self.servers);
+
                 let server = self
                     .servers
-                    .get(index)
+                    .get(self.last_index)
                     .ok_or("Couldn't find server")?
                     .clone();
 

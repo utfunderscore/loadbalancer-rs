@@ -1,7 +1,7 @@
 use crate::finder::ServerFinder;
 use crate::status::StatusCache;
 use ConnectionState::{Config, Status};
-use log::debug;
+use log::{debug, info};
 use pumpkin_protocol::{
     ClientPacket, ConnectionState,
     ConnectionState::{HandShake, Login},
@@ -89,8 +89,8 @@ impl Connection {
                 self.handle_status_packet(packet).await?;
             }
             Config => {
-                let _ = self.handle_config_packet().await;
-                return Err("Transferred".into());
+                self.handle_config_packet().await?;
+                return Err("Disconnect".into());
             }
             Login => {
                 self.handle_login_packet(packet).await?;
@@ -182,8 +182,9 @@ impl Connection {
         let server =finder.find_server()?;
         drop(finder);
 
-
         let (hostname, port) = server.get_host_and_port().await?;
+
+        info!("Transferring to {}:{}", hostname, port);
 
         self.send_packet(&CTransfer::new(&hostname, &VarInt(port as i32)))
             .await
