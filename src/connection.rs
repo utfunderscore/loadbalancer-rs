@@ -1,14 +1,15 @@
 use crate::finder::ServerFinder;
+use crate::status::StatusCache;
 use ConnectionState::{Config, Status};
 use log::debug;
 use pumpkin_protocol::{
     ClientPacket, ConnectionState,
     ConnectionState::{HandShake, Login},
-    Players, RawPacket, ServerPacket, StatusResponse, Version,
+    RawPacket, ServerPacket,
     codec::var_int::VarInt,
     java::client::config::CTransfer,
     java::client::login::CLoginSuccess,
-    java::client::status::{CPingResponse, CStatusResponse},
+    java::client::status::CPingResponse,
     java::packet_decoder::TCPNetworkDecoder,
     java::packet_encoder::TCPNetworkEncoder,
     java::server::handshake::SHandShake,
@@ -32,6 +33,7 @@ pub struct Connection {
     network_writer: TCPNetworkEncoder<BufWriter<OwnedWriteHalf>>,
     network_reader: TCPNetworkDecoder<BufReader<OwnedReadHalf>>,
     server_finder: Arc<Mutex<Box<dyn ServerFinder>>>,
+    status_cache: Arc<Mutex<StatusCache>>,
     context_id: usize,
     protocol_version: i32,
 }
@@ -43,6 +45,7 @@ impl Connection {
         owned_read_half: OwnedReadHalf,
         owned_write_half: OwnedWriteHalf,
         server_finder: Arc<Mutex<Box<dyn ServerFinder>>>,
+        status_cache: Arc<Mutex<StatusCache>>,
     ) -> Connection {
         Connection {
             state: HandShake,
@@ -51,6 +54,7 @@ impl Connection {
             network_writer: TCPNetworkEncoder::new(BufWriter::new(owned_write_half)),
             network_reader: TCPNetworkDecoder::new(BufReader::new(owned_read_half)),
             protocol_version: 0,
+            status_cache,
         }
     }
 
@@ -90,7 +94,7 @@ impl Connection {
             Login => {
                 self.handle_login_packet(packet).await?;
             }
-            _ => todo!(),
+            _ => {}
         }
         Ok(())
     }
@@ -118,7 +122,6 @@ impl Connection {
     }
 
     async fn handle_status_packet(&mut self, packet: &mut RawPacket) -> Result<(), Box<dyn Error>> {
-
         let bytebuf = &packet.payload[..];
         debug!("Handling status packet with id {}", packet.id);
 
@@ -126,23 +129,17 @@ impl Connection {
             SStatusRequest::PACKET_ID => {
                 let protocol = max(766, self.protocol_version) as u32;
 
-                let response = StatusResponse {
-                    version: Some(Version {
-                        name: "1.21.8".to_owned(),
+                let status = self
+                    .status_cache
+                    .lock()
+                    .await
+                    .get_status_response(
+                        String::from("test"),
                         protocol,
-                    }),
-                    players: Some(Players {
-                        max: 1000,
-                        online: 0,
-                        sample: Vec::new(),
-                    }),
-                    description: "Pumpkin loadbalancer".to_string(),
-                    favicon: None,
-                    enforce_secure_chat: false,
-                };
-
-                let response = serde_json::to_string(&response)?;
-                return self.send_packet(&CStatusResponse::new(response)).await;
+                        self.server_finder.lock().await,
+                    )
+                    .await;
+                return self.send_packet(&status).await;
             }
             SStatusPingRequest::PACKET_ID => {
                 let payload = SStatusPingRequest::read(bytebuf)?.payload;
@@ -176,12 +173,13 @@ impl Connection {
     }
 
     async fn handle_config_packet(&mut self) -> Result<(), Box<dyn Error>> {
-        let (hostname, port) = {
-            let mut server_finder = self.server_finder.lock().await;
-            let server = server_finder.find_server()?;
-            (server.hostname.clone(), server.port as i32)
-        };
-        self.send_packet(&CTransfer::new(&hostname, &VarInt(port)))
+        let (hostname, port) = self
+            .server_finder
+            .lock()
+            .await
+            .find_server()?
+            .get_hostname_and_port();
+        self.send_packet(&CTransfer::new(&hostname, &VarInt(port as i32)))
             .await
     }
 

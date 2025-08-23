@@ -1,19 +1,16 @@
+use crate::backend::MinecraftServer;
 use crate::config::Algorithm::RoundRobin;
 use crate::config::{Algorithm, Config, Mode, StaticConfig};
-use crate::finder::backend::MinecraftServer;
 use async_trait::async_trait;
-use std::error::Error;
-use std::future;
-use std::time::Duration;
 use futures::future::join_all;
-use tokio::time::error::Elapsed;
+use std::error::Error;
+use std::time::Duration;
+use log::info;
 use tokio::time::timeout;
-
-pub mod backend;
 
 #[async_trait]
 pub trait ServerFinder: Send + Sync {
-    async fn get_player_count(&self) -> u64;
+    async fn get_player_count(&self) -> u32;
 
     fn find_server(&mut self) -> Result<MinecraftServer, Box<dyn Error>>;
 }
@@ -41,7 +38,7 @@ impl StaticServerFiner {
             servers: config
                 .servers
                 .iter()
-                .map(|x| MinecraftServer::new(x.address.clone(), x.port))
+                .map(|x| MinecraftServer::new(x.address.clone()))
                 .collect(),
             mode: config.algorithm,
             last_index: 0,
@@ -51,9 +48,12 @@ impl StaticServerFiner {
 
 #[async_trait]
 impl ServerFinder for StaticServerFiner {
-    async fn get_player_count(&self) -> u64 {
+    async fn get_player_count(&self) -> u32 {
+        info!("Getting player count from {} servers", self.servers.len());
+
         let futures: Vec<_> = self.servers.iter().map(|x| async move {
-            timeout(Duration::from_secs(5), x.get_player_count()).await.ok().flatten().unwrap_or(0)
+            let result: Result<u32, Box<dyn Error>> = timeout(Duration::from_secs(5), x.get_player_count()).await.map_err(|x| x.into()).flatten();
+            result.unwrap_or(0)
         }).collect();
 
         join_all(futures).await.iter().sum()

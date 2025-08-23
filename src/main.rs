@@ -1,9 +1,9 @@
 pub mod config;
 pub mod connection;
 pub mod finder;
+pub mod backend;
+mod status;
 
-use config::Config;
-use connection::Connection;
 use log::info;
 use std::error::Error;
 use std::fs::write;
@@ -11,6 +11,8 @@ use std::path::Path;
 use std::sync::{Arc};
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
+use crate::config::Config;
+use crate::connection::Connection;
 use crate::finder::ServerFinder;
 
 #[tokio::main]
@@ -31,12 +33,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     loop {
         let (stream, addr) = listener.accept().await?;
         let server_finder = server_finder.clone();
+        let status_cache = Arc::new(Mutex::new(status::StatusCache::new()));
 
         tokio::spawn(async move {
             let (read, write) = stream.into_split();
             info!("Accepted connection from {}", addr);
 
-            let mut connection = Connection::new(read, write, server_finder);
+            let mut connection = Connection::new(read, write, server_finder, status_cache);
 
             loop {
                 if !connection.process_packets().await {
