@@ -90,6 +90,7 @@ impl Connection {
             }
             Config => {
                 let _ = self.handle_config_packet().await;
+                return Err("Transferred".into());
             }
             Login => {
                 self.handle_login_packet(packet).await?;
@@ -173,12 +174,17 @@ impl Connection {
     }
 
     async fn handle_config_packet(&mut self) -> Result<(), Box<dyn Error>> {
-        let (hostname, port) = self
+        let mut finder = self
             .server_finder
             .lock()
-            .await
-            .find_server()?
-            .get_hostname_and_port();
+            .await;
+
+        let server =finder.find_server()?;
+        drop(finder);
+
+
+        let (hostname, port) = server.get_host_and_port().await?;
+
         self.send_packet(&CTransfer::new(&hostname, &VarInt(port as i32)))
             .await
     }

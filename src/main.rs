@@ -2,7 +2,8 @@ pub mod config;
 pub mod connection;
 pub mod finder;
 pub mod backend;
-mod status;
+pub mod status;
+pub mod address_resolver;
 
 use log::info;
 use std::error::Error;

@@ -3,9 +3,9 @@ use crate::config::Algorithm::RoundRobin;
 use crate::config::{Algorithm, Config, Mode, StaticConfig};
 use async_trait::async_trait;
 use futures::future::join_all;
+use log::info;
 use std::error::Error;
 use std::time::Duration;
-use log::info;
 use tokio::time::timeout;
 
 #[async_trait]
@@ -34,12 +34,20 @@ struct StaticServerFiner {
 
 impl StaticServerFiner {
     pub fn new(config: StaticConfig) -> Self {
+
+        let mut servers = Vec::new();
+
+        for server in config.servers {
+            let parsed = MinecraftServer::parse(server.address.clone());
+            if let Err(e) = parsed {
+                info!("Error parsing server address {}: {}", server.address, e);
+            } else {
+                servers.push(parsed.unwrap());
+            }
+        }
+
         StaticServerFiner {
-            servers: config
-                .servers
-                .iter()
-                .map(|x| MinecraftServer::new(x.address.clone()))
-                .collect(),
+            servers,
             mode: config.algorithm,
             last_index: 0,
         }
@@ -51,10 +59,25 @@ impl ServerFinder for StaticServerFiner {
     async fn get_player_count(&self) -> u32 {
         info!("Getting player count from {} servers", self.servers.len());
 
-        let futures: Vec<_> = self.servers.iter().map(|x| async move {
-            let result: Result<u32, Box<dyn Error>> = timeout(Duration::from_secs(5), x.get_player_count()).await.map_err(|x| x.into()).flatten();
-            result.unwrap_or(0)
-        }).collect();
+        let futures: Vec<_> = self
+            .servers
+            .iter()
+            .map(|x| async move {
+                let result: Result<u32, Box<dyn Error>> =
+                    timeout(Duration::from_secs(5), x.get_player_count())
+                        .await
+                        .map_err(|x| x.into())
+                        .flatten();
+                if result.is_err() {
+                    info!(
+                        "Error getting player count from server {}: {}",
+                        x.address,
+                        result.as_ref().err().unwrap()
+                    );
+                }
+                result.unwrap_or(0)
+            })
+            .collect();
 
         join_all(futures).await.iter().sum()
     }
@@ -62,12 +85,14 @@ impl ServerFinder for StaticServerFiner {
     fn find_server(&mut self) -> Result<MinecraftServer, Box<dyn Error>> {
         match self.mode {
             RoundRobin => {
+                println!("before: {}", self.last_index);
                 let index = self.last_index + 1;
                 if index >= self.servers.len() {
                     self.last_index = 0;
                 } else {
                     self.last_index = index;
                 }
+                println!("after: {}", self.last_index);
                 let server = self
                     .servers
                     .get(index)

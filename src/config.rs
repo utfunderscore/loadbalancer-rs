@@ -70,16 +70,10 @@ pub enum HttpMethod {
     POST,
 }
 
-fn default_port() -> u16 {
-    25565
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Server {
     pub name: Option<String>,
     pub address: String,
-    #[serde(default = "default_port")]
-    pub port: u16,
 }
 
 /* ---------------- Section Structures ---------------- */
