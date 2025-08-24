@@ -1,21 +1,3 @@
-// Single-file configuration loader for the Minecraft load balancer.
-// This ONLY defines data structures, parsing, and validation.
-// No load balancing logic is included.
-//
-// Dependencies you need in Cargo.toml:
-//
-// [dependencies]
-// serde = { version = "1.0", features = ["derive"] }
-// serde_yaml = "0.9"
-// serde_json = "1.0"          # (only if you also want JSON support; optional)
-// thiserror = "1.0"
-//
-// Usage:
-// let yaml = std::fs::read_to_string("config.yaml")?;
-// let cfg = Config::from_yaml_str(&yaml)?;
-// cfg.validate()?; // (already called inside from_yaml_* helpers)
-// println!("Mode: {:?}", cfg.mode);
-
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, path::Path};
 use thiserror::Error;
@@ -195,20 +177,16 @@ impl Config {
 # Select one of the modes below: 'static', 'geo', or 'http'
 
 mode: static           # Options: static, geo, http
+motd: test123
 
 # 1. Static Mode - Predefined list of servers with load balancing algorithm
 static:
   algorithm: round_robin   # Options: round_robin, lowest_player_count
   servers:
     - name: "US-East"
-      address: "useast.example.com"
-      port: 25565
+      address: "hypixel.net"
     - name: "EU-West"
-      address: "euwest.example.com"
-      port: 25565
-    - name: "Asia"
-      address: "asia.example.com"
-      port: 25565
+      address: "hollowcube.net"
 
 # 2. Geo Mode - Select server based on user's region (using a geo-location API)
 geo:
@@ -216,16 +194,12 @@ geo:
   regions:
     NA:
       address: "us.example.com"
-      port: 25565
     EU:
       address: "eu.example.com"
-      port: 25565
     ASIA:
       address: "asia.example.com"
-      port: 25565
   fallback:
     address: "fallback.example.com"
-    port: 25565
 
 # 3. HTTP Mode - Server address is fetched from a remote HTTP endpoint
 http:
@@ -240,6 +214,7 @@ http:
 # Advanced options (optional)
 timeout_seconds: 5         # Maximum time to wait for server selection
 log_level: info            # Options: info, debug, warn, error
+
 "#
     }
 }

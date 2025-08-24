@@ -1,6 +1,6 @@
 use crate::address_resolver::resolve_host_port;
 use crate::connection::Connection;
-use log::info;
+use log::{debug};
 use pumpkin_protocol::{
     ClientPacket, ConnectionState, RawPacket, ServerPacket, codec::var_int::VarInt,
     java::client::status::CStatusResponse, java::packet_decoder::TCPNetworkDecoder,
@@ -24,15 +24,15 @@ impl MinecraftServer {
     }
 
     pub async fn get_player_count(&self) -> Result<u32, Box<dyn Error>> {
-        println!("Getting player count from {}", self.address);
+        debug!("Getting player count from {}", self.address);
 
         let (hostname, port) = self.get_host_and_port().await?;
 
-        println!("{}:{}", hostname, port);
+        debug!("{}:{}", hostname, port);
 
         let stream = TcpStream::connect((hostname.clone(), port)).await?;
 
-        println!("Connected to server");
+        debug!("Connected to server");
 
         let (reader, writer) = stream.into_split();
 
@@ -46,13 +46,13 @@ impl MinecraftServer {
             next_state: ConnectionState::Status,
         };
 
-        info!("Sending handshake packet");
+        debug!("Sending handshake packet");
         Self::send_packet(&mut stream_writer, &handshake_packet).await?;
 
-        info!("Sending status packet");
+        debug!("Sending status packet");
         Self::send_packet(&mut stream_writer, &SStatusRequest).await?;
 
-        info!("Waiting for response");
+        debug!("Waiting for response");
 
         let packet: RawPacket = stream_reader.get_raw_packet().await?;
 
@@ -100,7 +100,6 @@ mod tests {
     #[tokio::test]
     async fn test_backend_new() {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
-        println!("Logger initialized");
         //
         let backend = MinecraftServer::parse(String::from("hypixel.net")).unwrap();
         let result = backend.get_player_count().await;

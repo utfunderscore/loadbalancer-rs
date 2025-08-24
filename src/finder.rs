@@ -45,9 +45,6 @@ impl StaticServerFiner {
                 servers.push(parsed.unwrap());
             }
         }
-
-        println!("{:?}", servers);
-
         StaticServerFiner {
             servers,
             mode: config.algorithm,
@@ -59,7 +56,6 @@ impl StaticServerFiner {
 #[async_trait]
 impl ServerFinder for StaticServerFiner {
     async fn get_player_count(&self) -> u32 {
-        info!("Getting player count from {} servers", self.servers.len());
 
         let futures: Vec<_> = self
             .servers
@@ -87,15 +83,12 @@ impl ServerFinder for StaticServerFiner {
     fn find_server(&mut self) -> Result<MinecraftServer, Box<dyn Error>> {
         match self.mode {
             RoundRobin => {
-                println!("before: {}", self.last_index);
                 let index = self.last_index + 1;
                 if index >= self.servers.len() {
                     self.last_index = 0;
                 } else {
                     self.last_index = index;
                 }
-                println!("after: {}", self.last_index);
-                println!("{:?}", self.servers);
 
                 let server = self
                     .servers

@@ -2,7 +2,6 @@ use crate::finder::ServerFinder;
 use pumpkin_protocol::java::client::status::CStatusResponse;
 use pumpkin_protocol::{Players, StatusResponse, Version};
 use std::collections::HashMap;
-use std::ops::Sub;
 use std::time::{Duration, Instant};
 use tokio::sync::MutexGuard;
 
@@ -20,7 +19,6 @@ impl Default for StatusCache {
 
 impl StatusCache {
     pub fn new() -> Self {
-        println!("Constructed");
         StatusCache {
             count: 0,
             last_updated: Instant::now() - Duration::from_secs(60),
@@ -34,9 +32,7 @@ impl StatusCache {
         protocol: u32,
         server_finder: MutexGuard<'_, Box<dyn ServerFinder>>,
     ) -> CStatusResponse {
-        println!("Elapsed: {:?}", self.last_updated.elapsed());
         if self.last_updated.elapsed().as_secs() > 15 {
-            println!("test123");
             self.count = server_finder.get_player_count().await;
             self.last_updated = Instant::now();
         }

@@ -105,21 +105,17 @@ impl Connection {
         packet: &mut RawPacket,
     ) -> Result<(), Box<dyn Error>> {
         let bytebuf = &packet.payload[..];
-        match packet.id {
-            SHandShake::PACKET_ID => {
-                let result = SHandShake::read(bytebuf)?;
-                // debug!(
-                //     "({}) Switched from {:?} to {:?}",
-                //     self.context_id, self.state, result.next_state
-                // );
-                self.state = result.next_state;
-                self.protocol_version = result.protocol_version.0;
-            }
-            _ => {
-                println!("Received unknown packet with id: {}", packet.id);
-            }
+        if packet.id == SHandShake::PACKET_ID {
+            let result = SHandShake::read(bytebuf)?;
+            debug!(
+                "({}) Switched from {:?} to {:?}",
+                self.context_id, self.state, result.next_state
+            );
+            self.state = result.next_state;
+            self.protocol_version = result.protocol_version.0;
+            return Ok(());
         }
-        Ok(())
+        Err("Incompatible handshake packet received".into())
     }
 
     async fn handle_status_packet(&mut self, packet: &mut RawPacket) -> Result<(), Box<dyn Error>> {
@@ -147,7 +143,6 @@ impl Connection {
                 return self.send_packet(&CPingResponse::new(payload)).await;
             }
             _ => {
-                println!("Received unknown packet with id: {}", packet.id);
                 Err("Unknown packet id")?
             }
         }

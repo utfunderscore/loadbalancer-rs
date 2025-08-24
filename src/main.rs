@@ -18,7 +18,7 @@ use crate::finder::ServerFinder;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    simple_logger::init_with_level(log::Level::Debug).unwrap();
+    simple_logger::init_with_level(log::Level::Info).unwrap();
 
     let config_path = "config.yaml";
     if !Path::new(config_path).exists() {

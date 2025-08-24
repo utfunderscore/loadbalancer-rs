@@ -39,7 +39,6 @@ pub async fn resolve_host_port(
     let resolver = TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default());
 
     if let Some((host_part, port)) = split_host_port(input)? {
-        println!("host: {}", host_part);
 
         if let Ok(ip) = IpAddr::from_str(host_part) {
             return Ok(ResolvedEndpoint {
