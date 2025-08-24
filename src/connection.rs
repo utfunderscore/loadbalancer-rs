@@ -85,7 +85,7 @@ impl Connection {
                 self.handle_handshake_packet(packet).await?;
             }
             Status => {
-                debug!("({}) Handling status packet", self.context_id);
+                // debug!("({}) Handling status packet", self.context_id);
                 self.handle_status_packet(packet).await?;
             }
             Config => {
@@ -108,10 +108,10 @@ impl Connection {
         match packet.id {
             SHandShake::PACKET_ID => {
                 let result = SHandShake::read(bytebuf)?;
-                debug!(
-                    "({}) Switched from {:?} to {:?}",
-                    self.context_id, self.state, result.next_state
-                );
+                // debug!(
+                //     "({}) Switched from {:?} to {:?}",
+                //     self.context_id, self.state, result.next_state
+                // );
                 self.state = result.next_state;
                 self.protocol_version = result.protocol_version.0;
             }
@@ -124,7 +124,7 @@ impl Connection {
 
     async fn handle_status_packet(&mut self, packet: &mut RawPacket) -> Result<(), Box<dyn Error>> {
         let bytebuf = &packet.payload[..];
-        debug!("Handling status packet with id {}", packet.id);
+        // debug!("Handling status packet with id {}", packet.id);
 
         match packet.id {
             SStatusRequest::PACKET_ID => {

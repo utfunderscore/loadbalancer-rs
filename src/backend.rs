@@ -58,9 +58,7 @@ impl MinecraftServer {
 
         let bytebuf = &packet.payload[..];
         let packet = CStatusResponse::read(bytebuf)?;
-
-        info!("Yup!");
-
+        
         let response = serde_json::from_str::<'_, Value>(&packet.json_response)?;
 
         let players = response

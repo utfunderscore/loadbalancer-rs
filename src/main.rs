@@ -30,11 +30,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let server_finder: Arc<Mutex<Box<dyn ServerFinder>>> = Arc::new(Mutex::new(finder::get_server_finder(config)?));
 
     let listener = TcpListener::bind("0.0.0.0:25565").await?;
+    let status_cache = Arc::new(Mutex::new(status::StatusCache::new()));
 
     loop {
         let (stream, addr) = listener.accept().await?;
         let server_finder = server_finder.clone();
-        let status_cache = Arc::new(Mutex::new(status::StatusCache::new()));
+
+        let status_cache = status_cache.clone();
 
         tokio::spawn(async move {
             let (read, write) = stream.into_split();

@@ -12,11 +12,18 @@ pub struct StatusCache {
     cache: HashMap<(String, u32, u32), String>,
 }
 
+impl Default for StatusCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StatusCache {
     pub fn new() -> Self {
+        println!("Constructed");
         StatusCache {
             count: 0,
-            last_updated: Instant::now().sub(Duration::from_secs(60)),
+            last_updated: Instant::now() - Duration::from_secs(60),
             cache: HashMap::new(),
         }
     }
@@ -27,8 +34,11 @@ impl StatusCache {
         protocol: u32,
         server_finder: MutexGuard<'_, Box<dyn ServerFinder>>,
     ) -> CStatusResponse {
-        if !self.last_updated.elapsed().as_secs() > 60 {
+        println!("Elapsed: {:?}", self.last_updated.elapsed());
+        if self.last_updated.elapsed().as_secs() > 15 {
+            println!("test123");
             self.count = server_finder.get_player_count().await;
+            self.last_updated = Instant::now();
         }
 
         if let Some(cached) = self.cache.get(&(motd.clone(), protocol, self.count)) {
@@ -39,7 +49,6 @@ impl StatusCache {
         self.cache
             .insert((motd, protocol, self.count), response.clone());
 
-        self.last_updated = Instant::now();
         CStatusResponse::new(response)
     }
 
