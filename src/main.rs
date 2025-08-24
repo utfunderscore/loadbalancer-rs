@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     let config = Config::from_yaml_file(Path::new("config.yaml"))?;
 
-    let server_finder: Arc<Mutex<Box<dyn ServerFinder>>> = Arc::new(Mutex::new(finder::get_server_finder(config)?));
+    let server_finder: Arc<Mutex<Box<dyn ServerFinder>>> = Arc::new(Mutex::new(finder::get_server_finder(&config)?));
 
     let listener = TcpListener::bind("0.0.0.0:25565").await?;
     let status_cache = Arc::new(Mutex::new(status::StatusCache::new()));
@@ -37,12 +37,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let server_finder = server_finder.clone();
 
         let status_cache = status_cache.clone();
+        let motd = config.motd.clone();
 
         tokio::spawn(async move {
             let (read, write) = stream.into_split();
             info!("Accepted connection from {}", addr);
 
-            let mut connection = Connection::new(read, write, server_finder, status_cache);
+            let mut connection = Connection::new(read, write, server_finder, status_cache, motd.clone());
 
             loop {
                 if !connection.process_packets().await {

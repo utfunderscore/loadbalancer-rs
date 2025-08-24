@@ -15,9 +15,9 @@ pub trait ServerFinder: Send + Sync {
     fn find_server(&mut self) -> Result<MinecraftServer, Box<dyn Error>>;
 }
 
-pub fn get_server_finder(config: Config) -> Result<Box<dyn ServerFinder>, Box<dyn Error>> {
+pub fn get_server_finder(config: &Config) -> Result<Box<dyn ServerFinder>, Box<dyn Error>> {
     match config.mode {
-        Mode::Static => match config.static_cfg {
+        Mode::Static => match &config.static_cfg {
             None => Err("Invalid static server find config.".into()),
             Some(config) => Ok(Box::new(StaticServerFiner::new(config))),
         },
@@ -33,11 +33,10 @@ struct StaticServerFiner {
 }
 
 impl StaticServerFiner {
-    pub fn new(config: StaticConfig) -> Self {
-
+    pub fn new(config: &StaticConfig) -> Self {
         let mut servers = Vec::new();
-
-        for server in config.servers {
+        
+        for server in config.servers.clone() {
             let parsed = MinecraftServer::parse(server.address.clone());
             if let Err(e) = parsed {
                 info!("Error parsing server address {}: {}", server.address, e);
@@ -56,6 +55,7 @@ impl StaticServerFiner {
 #[async_trait]
 impl ServerFinder for StaticServerFiner {
     async fn get_player_count(&self) -> u32 {
+        let start_time = std::time::Instant::now();
 
         let futures: Vec<_> = self
             .servers
@@ -77,7 +77,10 @@ impl ServerFinder for StaticServerFiner {
             })
             .collect();
 
-        join_all(futures).await.iter().sum()
+        let total = join_all(futures).await.iter().sum();
+        let elapsed = start_time.elapsed();
+        info!("Getting player counts took {:?}", elapsed);
+        total
     }
 
     fn find_server(&mut self) -> Result<MinecraftServer, Box<dyn Error>> {

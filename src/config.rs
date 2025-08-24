@@ -88,6 +88,7 @@ pub struct HttpConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
     pub mode: Mode,
+    pub motd: String,
 
     // "static" and "http" are reserved words in Rust, so use rename.
     #[serde(rename = "static")]

@@ -34,6 +34,7 @@ pub struct Connection {
     network_reader: TCPNetworkDecoder<BufReader<OwnedReadHalf>>,
     server_finder: Arc<Mutex<Box<dyn ServerFinder>>>,
     status_cache: Arc<Mutex<StatusCache>>,
+    motd: String,
     context_id: usize,
     protocol_version: i32,
 }
@@ -46,6 +47,7 @@ impl Connection {
         owned_write_half: OwnedWriteHalf,
         server_finder: Arc<Mutex<Box<dyn ServerFinder>>>,
         status_cache: Arc<Mutex<StatusCache>>,
+        motd: String,
     ) -> Connection {
         Connection {
             state: HandShake,
@@ -55,6 +57,7 @@ impl Connection {
             network_reader: TCPNetworkDecoder::new(BufReader::new(owned_read_half)),
             protocol_version: 0,
             status_cache,
+            motd
         }
     }
 
@@ -131,7 +134,7 @@ impl Connection {
                     .lock()
                     .await
                     .get_status_response(
-                        String::from("test"),
+                        self.motd.clone(),
                         protocol,
                         self.server_finder.lock().await,
                     )
