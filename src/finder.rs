@@ -1,18 +1,18 @@
 use crate::backend::MinecraftServer;
-use crate::config::Algorithm::RoundRobin;
-use crate::config::{Algorithm, Config, Mode, StaticConfig};
+use crate::config::{Algorithm, Config, Mode, Server, StaticConfig};
 use async_trait::async_trait;
-use futures::future::join_all;
+use futures::{StreamExt, future::join_all, stream};
 use log::info;
-use std::error::Error;
-use std::time::Duration;
+use reqwest::Client;
+use std::{collections::HashMap, error::Error, time::Duration};
 use tokio::time::timeout;
+use crate::connection::Connection;
 
 #[async_trait]
 pub trait ServerFinder: Send + Sync {
     async fn get_player_count(&self) -> u32;
 
-    fn find_server(&mut self) -> Result<MinecraftServer, Box<dyn Error>>;
+    async fn find_server(&mut self, connection: &Connection) -> Result<MinecraftServer, Box<dyn Error>>;
 }
 
 pub fn get_server_finder(config: &Config) -> Result<Box<dyn ServerFinder>, Box<dyn Error>> {
@@ -34,16 +34,11 @@ struct StaticServerFiner {
 
 impl StaticServerFiner {
     pub fn new(config: &StaticConfig) -> Self {
-        let mut servers = Vec::new();
-        
-        for server in config.servers.clone() {
-            let parsed = MinecraftServer::parse(server.address.clone());
-            if let Err(e) = parsed {
-                info!("Error parsing server address {}: {}", server.address, e);
-            } else {
-                servers.push(parsed.unwrap());
-            }
-        }
+        let servers = config
+            .servers
+            .iter()
+            .map(|x| MinecraftServer::new(x.address.clone()))
+            .collect();
         StaticServerFiner {
             servers,
             mode: config.algorithm,
@@ -83,9 +78,9 @@ impl ServerFinder for StaticServerFiner {
         total
     }
 
-    fn find_server(&mut self) -> Result<MinecraftServer, Box<dyn Error>> {
+    async fn find_server(&mut self, connection: &Connection) -> Result<MinecraftServer, Box<dyn Error>> {
         match self.mode {
-            RoundRobin => {
+            Algorithm::RoundRobin => {
                 let index = self.last_index + 1;
                 if index >= self.servers.len() {
                     self.last_index = 0;
@@ -102,8 +97,75 @@ impl ServerFinder for StaticServerFiner {
                 Ok(server)
             }
             Algorithm::LowestPlayerCount => {
-                todo!("No player count tracking yet")
+                let result: Vec<_> = stream::iter(self.servers.clone())
+                    .map(|server| async move {
+                        (
+                            server.clone(),
+                            server.get_player_count().await.unwrap_or(u32::MAX),
+                        )
+                    })
+                    .buffer_unordered(5)
+                    .collect()
+                    .await;
+
+                result
+                    .into_iter()
+                    .min_by_key(|(_, count)| *count)
+                    .map(|x| x.0)
+                    .ok_or("No servers available".into())
             }
         }
+    }
+}
+
+struct GeoServerFinder {
+    pub token: String,
+    pub regions: HashMap<String, MinecraftServer>, // keys like "NA", "EU"
+    pub fallback: MinecraftServer,
+    pub client: Client,
+}
+
+impl GeoServerFinder {
+    pub fn new(token: String, regions: HashMap<String, Server>, fallback: Server) -> Self {
+        let client = Client::new();
+
+        let regions: HashMap<String, MinecraftServer> = regions
+            .into_iter()
+            .map(|(key, server)| {
+                // transform server to ServerInfo
+                (key, MinecraftServer::new(server.address))
+            })
+            .collect();
+
+        let fallback = MinecraftServer::new(fallback.address);
+
+        GeoServerFinder {
+            token,
+            regions,
+            fallback,
+            client,
+        }
+    }
+}
+
+#[async_trait]
+impl ServerFinder for GeoServerFinder {
+    async fn get_player_count(&self) -> u32 {
+        let mut all_servers: Vec<MinecraftServer> = self.regions.values().cloned().collect();
+        all_servers.push(self.fallback.clone());
+
+        let result: Vec<u32> = stream::iter(all_servers).map(async |x| x.get_player_count().await.unwrap_or(0))
+            .buffer_unordered(8)
+            .collect().await;
+
+        result.iter().sum()
+    }
+
+    async fn find_server(&mut self, connection: &Connection) -> Result<MinecraftServer, Box<dyn Error>> {
+
+        let request = format!("https://api.ipinfo.io/lite/{}?token={}", "1.1.1.1", self.token);
+
+
+        todo!()
     }
 }

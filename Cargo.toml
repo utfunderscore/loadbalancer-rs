@@ -17,3 +17,7 @@ async-trait = "0.1.88"
 futures = "0.3.31"
 hickory-resolver = { version = "0.24", features = ["tokio-runtime"] }
 rand = "0.8.5"
+reqwest = { version = "0.12.23", features = ["json"] }
+heed = "0.22.0"
+redb = "3.0.1"
+tempfile = "3.21.0"

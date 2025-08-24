@@ -22,6 +22,7 @@ use std::{
     cmp::max, error::Error, io::Write, sync::Arc, sync::atomic::AtomicUsize,
     sync::atomic::Ordering::SeqCst,
 };
+use std::net::SocketAddr;
 use tokio::{
     io::{BufReader, BufWriter},
     net::tcp::{OwnedReadHalf, OwnedWriteHalf},
@@ -47,6 +48,7 @@ impl Connection {
         owned_write_half: OwnedWriteHalf,
         server_finder: Arc<Mutex<Box<dyn ServerFinder>>>,
         status_cache: Arc<Mutex<StatusCache>>,
+        addr: SocketAddr,
         motd: String,
     ) -> Connection {
         Connection {
@@ -177,7 +179,7 @@ impl Connection {
             .lock()
             .await;
 
-        let server =finder.find_server()?;
+        let server =finder.find_server(self).await?;
         drop(finder);
 
         let (hostname, port) = server.get_host_and_port().await?;

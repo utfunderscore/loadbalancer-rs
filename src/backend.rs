@@ -1,6 +1,6 @@
 use crate::address_resolver::resolve_host_port;
 use crate::connection::Connection;
-use log::{debug};
+use log::debug;
 use pumpkin_protocol::{
     ClientPacket, ConnectionState, RawPacket, ServerPacket, codec::var_int::VarInt,
     java::client::status::CStatusResponse, java::packet_decoder::TCPNetworkDecoder,
@@ -19,8 +19,8 @@ pub struct MinecraftServer {
 }
 
 impl MinecraftServer {
-    pub fn parse(address: String) -> Result<Self, Box<dyn Error>> {
-        Ok(MinecraftServer { address })
+    pub fn new(address: String) -> Self {
+        MinecraftServer { address }
     }
 
     pub async fn get_player_count(&self) -> Result<u32, Box<dyn Error>> {
@@ -58,7 +58,7 @@ impl MinecraftServer {
 
         let bytebuf = &packet.payload[..];
         let packet = CStatusResponse::read(bytebuf)?;
-        
+
         let response = serde_json::from_str::<'_, Value>(&packet.json_response)?;
 
         let players = response
@@ -101,7 +101,7 @@ mod tests {
     async fn test_backend_new() {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
         //
-        let backend = MinecraftServer::parse(String::from("hypixel.net")).unwrap();
+        let backend = MinecraftServer::new(String::from("hypixel.net"));
         let result = backend.get_player_count().await;
 
         println!("{:?}", result);
@@ -115,11 +115,9 @@ mod tests {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
         println!("Logger initialized");
         //
-        let backend = MinecraftServer::parse(String::from("hypixel.net")).unwrap();
+        let backend = MinecraftServer::new(String::from("hypixel.net"));
         let (host, port) = backend.get_host_and_port().await.unwrap();
 
         println!("{} {}", host, port)
     }
-
-
 }

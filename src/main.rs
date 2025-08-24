@@ -4,6 +4,7 @@ pub mod finder;
 pub mod backend;
 pub mod status;
 pub mod address_resolver;
+mod geo_api;
 
 use log::info;
 use std::error::Error;
@@ -43,7 +44,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let (read, write) = stream.into_split();
             info!("Accepted connection from {}", addr);
 
-            let mut connection = Connection::new(read, write, server_finder, status_cache, motd.clone());
+            let mut connection = Connection::new(read, write, server_finder, status_cache, addr, motd.clone());
 
             loop {
                 if !connection.process_packets().await {
