@@ -1,27 +1,37 @@
 use crate::backend::MinecraftServer;
-use crate::config::{Algorithm, Config, Mode, Server, StaticConfig};
+use crate::config::{Algorithm, Config, GeoConfig, Mode, Server, StaticConfig};
+use crate::connection::Connection;
+use crate::geo_api::GeoCache;
 use async_trait::async_trait;
 use futures::{StreamExt, future::join_all, stream};
 use log::info;
 use reqwest::Client;
 use std::{collections::HashMap, error::Error, time::Duration};
 use tokio::time::timeout;
-use crate::connection::Connection;
 
 #[async_trait]
 pub trait ServerFinder: Send + Sync {
     async fn get_player_count(&self) -> u32;
 
-    async fn find_server(&mut self, connection: &Connection) -> Result<MinecraftServer, Box<dyn Error>>;
+    async fn find_server(
+        &mut self,
+        connection: &Connection,
+    ) -> Result<MinecraftServer, Box<dyn Error>>;
 }
 
-pub fn get_server_finder(config: &Config) -> Result<Box<dyn ServerFinder>, Box<dyn Error>> {
+pub fn get_server_finder(config: Config) -> Result<Box<dyn ServerFinder>, Box<dyn Error>> {
     match config.mode {
-        Mode::Static => match &config.static_cfg {
+        Mode::Static => match config.static_cfg {
             None => Err("Invalid static server find config.".into()),
             Some(config) => Ok(Box::new(StaticServerFiner::new(config))),
         },
-        Mode::Geo => Err("TODO".into()),
+        Mode::Geo => match config.geo_cfg {
+            None => Err("Invalid geo location config".into()),
+            Some(config) => {
+                let finder = GeoServerFinder::new(config)?;
+                Ok(Box::new(finder))
+            }
+        },
         Mode::Http => Err("TODO".into()),
     }
 }
@@ -33,7 +43,7 @@ struct StaticServerFiner {
 }
 
 impl StaticServerFiner {
-    pub fn new(config: &StaticConfig) -> Self {
+    pub fn new(config: StaticConfig) -> Self {
         let servers = config
             .servers
             .iter()
@@ -78,7 +88,10 @@ impl ServerFinder for StaticServerFiner {
         total
     }
 
-    async fn find_server(&mut self, connection: &Connection) -> Result<MinecraftServer, Box<dyn Error>> {
+    async fn find_server(
+        &mut self,
+        connection: &Connection,
+    ) -> Result<MinecraftServer, Box<dyn Error>> {
         match self.mode {
             Algorithm::RoundRobin => {
                 let index = self.last_index + 1;
@@ -119,17 +132,18 @@ impl ServerFinder for StaticServerFiner {
 }
 
 struct GeoServerFinder {
-    pub token: String,
-    pub regions: HashMap<String, MinecraftServer>, // keys like "NA", "EU"
+    pub regions: HashMap<String, MinecraftServer>,
     pub fallback: MinecraftServer,
+    pub geo_cache: GeoCache,
     pub client: Client,
 }
 
 impl GeoServerFinder {
-    pub fn new(token: String, regions: HashMap<String, Server>, fallback: Server) -> Self {
+    pub fn new(config: GeoConfig) -> Result<Self, Box<dyn Error>> {
         let client = Client::new();
 
-        let regions: HashMap<String, MinecraftServer> = regions
+        let regions: HashMap<String, MinecraftServer> = config
+            .regions
             .into_iter()
             .map(|(key, server)| {
                 // transform server to ServerInfo
@@ -137,14 +151,15 @@ impl GeoServerFinder {
             })
             .collect();
 
-        let fallback = MinecraftServer::new(fallback.address);
+        let fallback = MinecraftServer::new(config.fallback.address);
+        let geo_cache = GeoCache::new(config.token)?;
 
-        GeoServerFinder {
-            token,
+        Ok(GeoServerFinder {
             regions,
             fallback,
             client,
-        }
+            geo_cache,
+        })
     }
 }
 
@@ -154,18 +169,30 @@ impl ServerFinder for GeoServerFinder {
         let mut all_servers: Vec<MinecraftServer> = self.regions.values().cloned().collect();
         all_servers.push(self.fallback.clone());
 
-        let result: Vec<u32> = stream::iter(all_servers).map(async |x| x.get_player_count().await.unwrap_or(0))
+        let result: Vec<u32> = stream::iter(all_servers)
+            .map(async |x| x.get_player_count().await.unwrap_or(0))
             .buffer_unordered(8)
-            .collect().await;
+            .collect()
+            .await;
 
         result.iter().sum()
     }
 
-    async fn find_server(&mut self, connection: &Connection) -> Result<MinecraftServer, Box<dyn Error>> {
+    async fn find_server(
+        &mut self,
+        connection: &Connection,
+    ) -> Result<MinecraftServer, Box<dyn Error>> {
+        let ip_info = self
+            .geo_cache
+            .get_geo_data(&connection.addr.to_string())
+            .await?;
+        if let Some(server) = self.regions.get(&ip_info.continent_code) {
+            return Ok(server.clone());
+        };
+        if let Some(server) = self.regions.get(&ip_info.country_code) {
+            return Ok(server.clone());
+        }
 
-        let request = format!("https://api.ipinfo.io/lite/{}?token={}", "1.1.1.1", self.token);
-
-
-        todo!()
+        Ok(self.fallback.clone())
     }
 }

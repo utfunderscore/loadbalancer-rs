@@ -36,6 +36,7 @@ pub struct Connection {
     server_finder: Arc<Mutex<Box<dyn ServerFinder>>>,
     status_cache: Arc<Mutex<StatusCache>>,
     motd: String,
+    pub addr: SocketAddr,
     context_id: usize,
     protocol_version: i32,
 }
@@ -59,6 +60,7 @@ impl Connection {
             network_reader: TCPNetworkDecoder::new(BufReader::new(owned_read_half)),
             protocol_version: 0,
             status_cache,
+            addr,
             motd
         }
     }

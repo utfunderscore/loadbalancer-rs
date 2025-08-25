@@ -19,9 +19,9 @@ pub struct IpInfo {
 const GEO_TABLE: TableDefinition<String, String> = TableDefinition::new("geo_cache");
 
 pub struct GeoCache {
-    pub client: Client,
-    pub token: String,
-    pub db: Database,
+    client: Client,
+    token: String,
+    db: Database,
 }
 
 impl GeoCache {

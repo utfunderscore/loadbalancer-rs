@@ -94,7 +94,8 @@ pub struct Config {
     #[serde(rename = "static")]
     pub static_cfg: Option<StaticConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub geo: Option<GeoConfig>,
+    #[serde(rename = "geo")]
+    pub geo_cfg: Option<GeoConfig>,
     #[serde(rename = "http")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub http_cfg: Option<HttpConfig>,
@@ -143,7 +144,7 @@ impl Config {
                 }
             }
             Mode::Geo => {
-                let gc = self.geo.as_ref().ok_or_else(|| {
+                let gc = self.geo_cfg.as_ref().ok_or_else(|| {
                     ConfigError::Invalid("mode 'geo' requires a 'geo' section".into())
                 })?;
                 if gc.regions.is_empty() {
