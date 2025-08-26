@@ -39,7 +39,6 @@ pub async fn resolve_host_port(
     let resolver = TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default());
 
     if let Some((host_part, port)) = split_host_port(input)? {
-
         if let Ok(ip) = IpAddr::from_str(host_part) {
             return Ok(ResolvedEndpoint {
                 ip: ip.to_string(),
@@ -50,16 +49,16 @@ pub async fn resolve_host_port(
         }
 
         let addrs = resolver.lookup_ip(host_part).await?;
-        if let Some(ip) = addrs.iter().next() {
-            return Ok(ResolvedEndpoint {
+        return if let Some(ip) = addrs.iter().next() {
+            Ok(ResolvedEndpoint {
                 ip: ip.to_string(),
                 port,
                 original_input: input.to_string(),
                 resolved_host: host_part.to_string(),
-            });
+            })
         } else {
-            return Err(EndpointError::NoAddress(host_part.to_string()));
-        }
+            Err(EndpointError::NoAddress(host_part.to_string()))
+        };
     }
 
     let host = normalize_host_without_port(input);

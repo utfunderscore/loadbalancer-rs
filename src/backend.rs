@@ -1,4 +1,4 @@
-use crate::address_resolver::resolve_host_port;
+use crate::address_resolver::{resolve_host_port, EndpointError, ResolvedEndpoint};
 use crate::connection::Connection;
 use log::debug;
 use pumpkin_protocol::{

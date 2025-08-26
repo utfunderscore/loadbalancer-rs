@@ -74,13 +74,7 @@ impl Connection {
         };
 
         if let Err(error) = self.handle_packet(&mut packet).await {
-            log::error!(
-                "({}) Failed to read incoming packet with id {} (State: {:?}): {}",
-                self.context_id,
-                packet.id,
-                self.state,
-                error
-            );
+            log::error!("{}", error);
             return false;
         };
         true

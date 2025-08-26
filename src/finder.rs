@@ -1,12 +1,14 @@
 use crate::backend::MinecraftServer;
-use crate::config::{Algorithm, Config, GeoConfig, Mode, Server, StaticConfig};
+use crate::config::{
+    GeoConfig, LoadBalanceMode, LoadBalancerConfig, StaticAlgorithm, StaticConfig,
+};
 use crate::connection::Connection;
 use crate::geo_api::GeoCache;
 use async_trait::async_trait;
 use futures::{StreamExt, future::join_all, stream};
 use log::info;
-use reqwest::Client;
 use std::{collections::HashMap, error::Error, time::Duration};
+use std::net::IpAddr;
 use tokio::time::timeout;
 
 #[async_trait]
@@ -19,26 +21,28 @@ pub trait ServerFinder: Send + Sync {
     ) -> Result<MinecraftServer, Box<dyn Error>>;
 }
 
-pub fn get_server_finder(config: Config) -> Result<Box<dyn ServerFinder>, Box<dyn Error>> {
+pub fn get_server_finder(
+    config: LoadBalancerConfig,
+) -> Result<Box<dyn ServerFinder>, Box<dyn Error>> {
     match config.mode {
-        Mode::Static => match config.static_cfg {
+        LoadBalanceMode::Static => match config.static_config {
             None => Err("Invalid static server find config.".into()),
             Some(config) => Ok(Box::new(StaticServerFiner::new(config))),
         },
-        Mode::Geo => match config.geo_cfg {
+        LoadBalanceMode::Geo => match config.geo_config {
             None => Err("Invalid geo location config".into()),
             Some(config) => {
                 let finder = GeoServerFinder::new(config)?;
                 Ok(Box::new(finder))
             }
         },
-        Mode::Http => Err("TODO".into()),
+        LoadBalanceMode::Http => Err("TODO".into()),
     }
 }
 
 struct StaticServerFiner {
     servers: Vec<MinecraftServer>,
-    mode: Algorithm,
+    mode: StaticAlgorithm,
     last_index: usize,
 }
 
@@ -88,12 +92,9 @@ impl ServerFinder for StaticServerFiner {
         total
     }
 
-    async fn find_server(
-        &mut self,
-        connection: &Connection,
-    ) -> Result<MinecraftServer, Box<dyn Error>> {
+    async fn find_server(&mut self, _: &Connection) -> Result<MinecraftServer, Box<dyn Error>> {
         match self.mode {
-            Algorithm::RoundRobin => {
+            StaticAlgorithm::RoundRobin => {
                 let index = self.last_index + 1;
                 if index >= self.servers.len() {
                     self.last_index = 0;
@@ -109,7 +110,7 @@ impl ServerFinder for StaticServerFiner {
 
                 Ok(server)
             }
-            Algorithm::LowestPlayerCount => {
+            StaticAlgorithm::LowestPlayerCount => {
                 let result: Vec<_> = stream::iter(self.servers.clone())
                     .map(|server| async move {
                         (
@@ -135,12 +136,10 @@ struct GeoServerFinder {
     pub regions: HashMap<String, MinecraftServer>,
     pub fallback: MinecraftServer,
     pub geo_cache: GeoCache,
-    pub client: Client,
 }
 
 impl GeoServerFinder {
     pub fn new(config: GeoConfig) -> Result<Self, Box<dyn Error>> {
-        let client = Client::new();
 
         let regions: HashMap<String, MinecraftServer> = config
             .regions
@@ -157,10 +156,11 @@ impl GeoServerFinder {
         Ok(GeoServerFinder {
             regions,
             fallback,
-            client,
             geo_cache,
         })
     }
+
+
 }
 
 #[async_trait]
@@ -182,9 +182,25 @@ impl ServerFinder for GeoServerFinder {
         &mut self,
         connection: &Connection,
     ) -> Result<MinecraftServer, Box<dyn Error>> {
+        let is_local = match connection.addr.ip() {
+            IpAddr::V4(ipv4) => {
+                // Check for loopback, private, or link-local ranges
+                ipv4.is_loopback() || ipv4.is_private() || ipv4.is_link_local()
+            }
+            IpAddr::V6(ipv6) => {
+                // Check for loopback or unique local addresses
+                ipv6.is_loopback() || ipv6.is_unique_local()
+            }
+        };
+        let ip = if is_local {
+            "129.58.155.11"
+        } else {
+            &connection.addr.ip().to_string()
+        };
+
         let ip_info = self
             .geo_cache
-            .get_geo_data(&connection.addr.to_string())
+            .get_geo_data(ip)
             .await?;
         if let Some(server) = self.regions.get(&ip_info.continent_code) {
             return Ok(server.clone());
@@ -195,4 +211,5 @@ impl ServerFinder for GeoServerFinder {
 
         Ok(self.fallback.clone())
     }
+
 }
