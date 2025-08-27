@@ -96,10 +96,13 @@ impl MinecraftServer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    
+    fn setup_logger() {
+            simple_logger::init_with_level(log::Level::Debug).unwrap();
+        }
 
     #[tokio::test]
     async fn test_backend_new() {
-        simple_logger::init_with_level(log::Level::Debug).unwrap();
         //
         let backend = MinecraftServer::new(String::from("hypixel.net"));
         let result = backend.get_player_count().await;
@@ -112,7 +115,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_host_port() {
-        simple_logger::init_with_level(log::Level::Debug).unwrap();
         println!("Logger initialized");
         //
         let backend = MinecraftServer::new(String::from("hypixel.net"));
