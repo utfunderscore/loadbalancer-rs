@@ -80,7 +80,7 @@ jobs:
           cp target/${{ matrix.target }}/release/loadbalancer-rs.exe dist/loadbalancer-rs-${{ matrix.os }}-${{ matrix.arch }}.exe
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: loadbalancer-rs-${{ matrix.os }}-${{ matrix.arch }}
           path: dist/loadbalancer-rs-${{ matrix.os }}-${{ matrix.arch }}*
