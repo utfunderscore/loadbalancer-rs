@@ -23,14 +23,14 @@ impl WritablePacket for StatusResponse {
         self,
         writer: &mut W,
     ) -> Result<(), std::io::Error> {
-        write_string(writer, self.json).await
+        self.json.mc_write(writer).await
     }
 }
 
-use crate::protocol::mc_string::write_string;
 use crate::protocol::packets::{Packet, WritablePacket};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
+use crate::protocol::protocol_types::ProtocolType;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ServerStatus {

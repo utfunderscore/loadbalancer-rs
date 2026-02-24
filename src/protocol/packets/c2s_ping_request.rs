@@ -1,8 +1,9 @@
 use crate::protocol::packets::{Packet, ReadablePacket};
 use std::io::Error;
 use tokio::io::AsyncReadExt;
-use crate::protocol::varlong::read_var_long;
+use crate::protocol::protocol_types::ProtocolType;
 
+#[derive(Debug)]
 pub struct PingRequest {
     pub timestamp: i64,
 }
@@ -17,7 +18,7 @@ impl Packet for PingRequest {
 
 impl ReadablePacket for PingRequest {
     async fn read<W: AsyncReadExt + Unpin>(data: &mut W) -> Result<Self, Error> {
-        let timestamp = read_var_long(data).await?;
+        let timestamp = data.read_i64().await?;
         Ok(Self { timestamp })
     }
 }

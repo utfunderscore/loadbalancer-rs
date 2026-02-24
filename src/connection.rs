@@ -1,36 +1,37 @@
 use crate::finder::ServerFinder;
 use crate::status::StatusCache;
-use log::debug;
 
 use crate::protocol::connection_state::ConnectionState;
+use crate::protocol::packets::{Packet, ReadablePacket};
+use crate::protocol::packets::WritablePacket;
 use crate::protocol::packets::c2s_handshake::C2SHandshake;
 use crate::protocol::packets::c2s_legacy_ping::C2SLegacyPing;
 use crate::protocol::packets::c2s_ping_request::PingRequest;
 use crate::protocol::packets::c2s_status_request::C2SStatusRequest;
 use crate::protocol::packets::s2c_ping_response::PongResponse;
-use crate::protocol::packets::{ReadablePacket, WritablePacket};
-use crate::protocol::varint::write_var_int;
-use crate::protocol::{PacketData, PacketReader, packets};
+use crate::protocol::{PacketData, PacketReader, PacketWriter};
 use anyhow::anyhow;
 use std::cmp::max;
 use std::net::SocketAddr;
 use std::{error::Error, sync::Arc, sync::atomic::AtomicUsize, sync::atomic::Ordering::SeqCst};
-use tokio::io::AsyncWriteExt;
 use tokio::{
     io::{BufReader, BufWriter},
     net::tcp::{OwnedReadHalf, OwnedWriteHalf},
     sync::Mutex,
 };
+use crate::protocol::packets::c2s_login_aknowledged::LoginAcknowledged;
+use crate::protocol::packets::c2s_login_start::LoginStart;
+use crate::protocol::packets::s2c_login_success::LoginSuccess;
+use crate::protocol::packets::s2c_transfer::TransferPacket;
 
 pub struct Connection {
     state: ConnectionState,
-    network_writer: BufWriter<OwnedWriteHalf>,
+    network_writer: PacketWriter,
     network_reader: PacketReader,
     server_finder: Arc<Mutex<Box<dyn ServerFinder>>>,
     status_cache: Arc<Mutex<StatusCache>>,
     motd: String,
     pub addr: SocketAddr,
-    context_id: usize,
     protocol_version: i32,
 }
 
@@ -48,8 +49,7 @@ impl Connection {
         Connection {
             state: ConnectionState::HandShake,
             server_finder,
-            context_id: COUNTER.fetch_add(1, SeqCst),
-            network_writer: BufWriter::new(owned_write_half),
+            network_writer: PacketWriter::new(BufWriter::new(owned_write_half)),
             network_reader: PacketReader::new(BufReader::new(owned_read_half)),
             protocol_version: 0,
             status_cache,
@@ -82,13 +82,13 @@ impl Connection {
                 // debug!("({}) Handling status packet", self.context_id);
                 self.handle_status_packet(packet).await?;
             }
-            // Config => {
-            //     self.handle_config_packet().await?;
-            //     return Err("Disconnect".into());
-            // }
-            // Login => {
-            //     self.handle_login_packet(packet).await?;
-            // }
+            ConnectionState::Config => {
+                self.handle_config_packet().await?;
+                return Err("Disconnect".into());
+            }
+            ConnectionState::Login => {
+                self.handle_login_packet(packet).await?;
+            }
             _ => {}
         }
         Ok(())
@@ -103,6 +103,7 @@ impl Connection {
 
             println!("{:?}", &handshake);
             self.state = handshake.intent;
+            self.protocol_version = handshake.protocol_version;
 
             println!("Switching to {:?} state", self.state);
 
@@ -133,82 +134,60 @@ impl Connection {
                     )
                     .await?;
 
-                println!("{:?}", status);
                 self.send_packet(status).await?;
                 println!("Sent status response packet");
 
-                return Ok(());
+                Ok(())
             }
             PingRequest::ID => {
                 let payload = PingRequest::read(&mut packet.data).await?;
-                return self.send_packet(PongResponse::new(payload.timestamp)).await;
+
+                println!("Received ping request {:?}", payload);
+
+                self.send_packet(PongResponse::new(payload.timestamp)).await
             }
-            _ => {
-                return Err(anyhow!("Incompatible status packet received"));
-            }
+            _ => Err(anyhow!("Incompatible status packet received")),
         }
-        Ok(())
+    }
+
+    async fn handle_login_packet(&mut self, packet: &mut PacketData) -> Result<(), Box<dyn Error>> {
+        match packet.id {
+            LoginStart::ID => {
+                let login = LoginStart::read(&mut packet.data).await?;
+                self.send_packet(LoginSuccess::by_name(login.name, login.player_id))
+                    .await?;
+                Ok(())
+            }
+            LoginAcknowledged::ID => {
+                self.state = ConnectionState::Config;
+                Ok(())
+            }
+            _ => Err("Unknown packet id".into()),
+        }
     }
     //
-    // async fn handle_login_packet(&mut self, packet: &mut RawPacket) -> Result<(), Box<dyn Error>> {
-    //     let bytebuf = &packet.payload[..];
-    //     match packet.id {
-    //         SLoginStart::PACKET_ID => {
-    //             debug!("Received login start packet");
-    //             let login = SLoginStart::read(bytebuf)?;
-    //             self.send_packet(&CLoginSuccess::new(&login.uuid, &login.name, &[]))
-    //                 .await?;
-    //             Ok(())
-    //         }
-    //         SLoginAcknowledged::PACKET_ID => {
-    //             debug!("Received login acknowledged packet");
-    //             self.state = Config;
-    //             Ok(())
-    //         }
-    //         _ => Err("Unknown packet id".into()),
-    //     }
-    // }
-    //
-    // async fn handle_config_packet(&mut self) -> Result<(), Box<dyn Error>> {
-    //     let mut finder = self
-    //         .server_finder
-    //         .lock()
-    //         .await;
-    //
-    //     let server =finder.find_server(self).await?;
-    //     drop(finder);
-    //
-    //     let (hostname, port) = server.get_host_and_port().await?;
-    //
-    //     info!("Transferring to {}:{}", hostname, port);
-    //
-    //     self.send_packet(&CTransfer::new(&hostname, &VarInt(port as i32)))
-    //         .await
-    // }
+    async fn handle_config_packet(&mut self) -> anyhow::Result<()> {
+        let mut finder = self
+            .server_finder
+            .lock()
+            .await;
+
+        let server =finder.find_server(self).await?;
+        drop(finder);
+
+        let (hostname, port) = server.get_host_and_port().await?;
+
+        println!("Transferring to {}:{}", hostname, port);
+
+        self.send_packet(TransferPacket::new(hostname, port as i32))
+            .await
+    }
     //
     async fn send_packet<PACKET>(&mut self, packet: PACKET) -> anyhow::Result<()>
     where
         PACKET: WritablePacket,
     {
-        Self::write_packet(packet, &mut self.network_writer).await?;
-        self.network_writer.flush().await?;
+        self.network_writer.write_packet(packet).await?;
         Ok(())
     }
-    //
-    pub async fn write_packet<PACKET: WritablePacket, W: AsyncWriteExt + Unpin + Send>(
-        packet: PACKET,
-        mut write: &mut W,
-    ) -> anyhow::Result<()> {
-        let mut data: Vec<u8> = Vec::new();
-        write_var_int(&mut data, PACKET::ID).await?;
-        packet.write(&mut data).await?;
-
-        write_var_int(&mut write, data.len() as i32).await?;
-        write.write_all(&data).await?;
-        Ok(())
-    }
-    //
-    // async fn get_packet(&mut self) -> Option<RawPacket> {
-    //     self.network_reader.get_raw_packet().await.ok()
-    // }
 }

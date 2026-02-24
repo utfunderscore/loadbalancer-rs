@@ -7,6 +7,10 @@ pub mod c2s_status_request;
 pub mod s2c_status_response;
 pub mod c2s_ping_request;
 pub mod s2c_ping_response;
+pub mod c2s_login_start;
+pub mod s2c_login_success;
+pub mod c2s_login_aknowledged;
+pub mod s2c_transfer;
 
 pub trait Packet {
     const ID: i32;

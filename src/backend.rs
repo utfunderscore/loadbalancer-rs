@@ -68,7 +68,7 @@ impl MinecraftServer {
         Ok(0)
     }
 
-    pub async fn get_host_and_port(&self) -> Result<(String, u16), Box<dyn Error>> {
+    pub async fn get_host_and_port(&self) -> anyhow::Result<(String, u16)> {
         let result = resolve_host_port(&self.address, "minecraft", "tcp", 25565).await?;
 
         Ok((result.ip.to_string(), result.port))

@@ -1,9 +1,8 @@
+use crate::finder::ServerFinder;
+use crate::protocol::packets::s2c_status_response::{Description, Players, ServerStatus, StatusResponse, Version};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tokio::sync::MutexGuard;
-use crate::finder::ServerFinder;
-use crate::protocol::packets::c2s_status_request::C2SStatusRequest;
-use crate::protocol::packets::s2c_status_response::{Description, Players, ServerStatus, StatusResponse, Version};
 
 pub struct StatusCache {
     count: u32,

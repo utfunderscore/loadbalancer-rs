@@ -21,3 +21,4 @@ tempfile = "3.21.0"
 tokio-util = "0.7.18"
 bytes = "1.11.1"
 anyhow = { version = "1.0.102", features = ["backtrace"] }
+uuid = { version = "1.21.0", features = ["v4"] }

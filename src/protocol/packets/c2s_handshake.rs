@@ -1,7 +1,6 @@
-use crate::protocol::mc_string::read_string;
-use crate::protocol::varint::read_var_int;
 use tokio::io::AsyncReadExt;
 use crate::protocol::connection_state::ConnectionState;
+use crate::protocol::protocol_types::ProtocolType;
 
 #[derive(Debug)]
 pub struct C2SHandshake {
@@ -15,10 +14,10 @@ impl C2SHandshake {
     pub const ID: i32 = 0;
 
     pub async fn read<W: AsyncReadExt + Unpin>(data: &mut W) -> Result<C2SHandshake, std::io::Error> {
-        let protocol_version = read_var_int(data).await?;
-        let server_address = read_string(data).await?;
+        let protocol_version = i32::mc_read(data).await?;
+        let server_address = String::mc_read(data).await?;
         let server_port = data.read_u16().await?;
-        let intent_id = read_var_int(data).await?;
+        let intent_id = i32::mc_read(data).await?;
         let intent = ConnectionState::from_intent(intent_id).ok_or(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!("Unknown intent: {}", intent_id),
