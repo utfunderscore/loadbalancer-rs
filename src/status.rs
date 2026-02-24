@@ -1,14 +1,14 @@
-use crate::finder::ServerFinder;
-use pumpkin_protocol::java::client::status::CStatusResponse;
-use pumpkin_protocol::{Players, StatusResponse, Version};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tokio::sync::MutexGuard;
+use crate::finder::ServerFinder;
+use crate::protocol::packets::c2s_status_request::C2SStatusRequest;
+use crate::protocol::packets::s2c_status_response::{Description, Players, ServerStatus, StatusResponse, Version};
 
 pub struct StatusCache {
     count: u32,
     last_updated: Instant,
-    cache: HashMap<(String, u32, u32), String>,
+    cache: HashMap<(String, u32, u32), ServerStatus>,
 }
 
 impl Default for StatusCache {
@@ -31,39 +31,37 @@ impl StatusCache {
         motd: String,
         protocol: u32,
         server_finder: MutexGuard<'_, Box<dyn ServerFinder>>,
-    ) -> CStatusResponse {
+    ) -> anyhow::Result<StatusResponse> {
         if self.last_updated.elapsed().as_secs() > 15 {
             self.count = server_finder.get_player_count().await;
             self.last_updated = Instant::now();
         }
 
         if let Some(cached) = self.cache.get(&(motd.clone(), protocol, self.count)) {
-            return CStatusResponse::new(cached.clone());
+            return StatusResponse::new(cached.clone());
         }
 
-        let response = self.build_status_response(motd.clone(), protocol, self.count);
-        self.cache
-            .insert((motd, protocol, self.count), response.clone());
-
-        CStatusResponse::new(response)
-    }
-
-    fn build_status_response(&self, motd: String, protocol: u32, player_count: u32) -> String {
-        let response = StatusResponse {
+        let response = ServerStatus {
             version: Some(Version {
                 name: "Loadbalancer".to_string(),
                 protocol,
             }),
             players: Some(Players {
                 max: 1000,
-                online: player_count,
+                online: self.count,
                 sample: Vec::new(),
             }),
-            description: motd,
+            description: Description {
+                text: motd.clone(),
+            },
             favicon: None,
-            enforce_secure_chat: false,
+            enforces_secure_chat: false,
         };
 
-        serde_json::to_string(&response).unwrap_or_default()
+
+        self.cache.insert((motd, protocol, self.count), response.clone());
+
+        StatusResponse::new(response)
     }
+
 }
