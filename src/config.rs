@@ -319,15 +319,15 @@ impl LoadBalancerConfig {
                         line: None,
                         column: None,
                     });
-                } else if let Some(static_config) = &self.static_config {
-                    if static_config.servers.is_empty() {
-                        errors.push(ConfigFieldError {
-                            field_path: "static.servers".to_string(),
-                            message: "Static mode requires at least one server".to_string(),
-                            line: None,
-                            column: None,
-                        });
-                    }
+                } else if let Some(static_config) = &self.static_config
+                    && static_config.servers.is_empty()
+                {
+                    errors.push(ConfigFieldError {
+                        field_path: "static.servers".to_string(),
+                        message: "Static mode requires at least one server".to_string(),
+                        line: None,
+                        column: None,
+                    });
                 }
             }
             LoadBalanceMode::Geo => {
@@ -447,6 +447,23 @@ impl LoadBalancerConfig {
         match fs::write(&path, output) {
             Ok(_) => Ok(()),
             Err(e) => Err(ConfigError::FileWriteError(e.to_string())),
+        }
+    }
+
+    pub fn get_log_level(&self) -> log::Level {
+        match self
+            .log_level
+            .as_deref()
+            .unwrap_or("info")
+            .to_lowercase()
+            .as_str()
+        {
+            "error" => log::Level::Error,
+            "warn" | "warning" => log::Level::Warn,
+            "info" => log::Level::Info,
+            "debug" => log::Level::Debug,
+            "trace" => log::Level::Trace,
+            _ => log::Level::Info,
         }
     }
 

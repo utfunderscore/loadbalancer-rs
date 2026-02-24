@@ -9,6 +9,7 @@ use futures::{StreamExt, future::join_all, stream};
 use log::info;
 use std::{collections::HashMap, error::Error, time::Duration};
 use std::net::IpAddr;
+use anyhow::anyhow;
 use tokio::time::timeout;
 
 #[async_trait]
@@ -18,7 +19,7 @@ pub trait ServerFinder: Send + Sync {
     async fn find_server(
         &mut self,
         connection: &Connection,
-    ) -> Result<MinecraftServer, Box<dyn Error>>;
+    ) -> anyhow::Result<MinecraftServer>;
 }
 
 pub fn get_server_finder(
@@ -92,7 +93,7 @@ impl ServerFinder for StaticServerFiner {
         total
     }
 
-    async fn find_server(&mut self, _: &Connection) -> Result<MinecraftServer, Box<dyn Error>> {
+    async fn find_server(&mut self, _: &Connection) -> anyhow::Result<MinecraftServer> {
         match self.mode {
             StaticAlgorithm::RoundRobin => {
                 let index = self.last_index + 1;
@@ -105,7 +106,7 @@ impl ServerFinder for StaticServerFiner {
                 let server = self
                     .servers
                     .get(self.last_index)
-                    .ok_or("Couldn't find server")?
+                    .ok_or(anyhow!("Couldn't find server"))?
                     .clone();
 
                 Ok(server)
@@ -126,7 +127,7 @@ impl ServerFinder for StaticServerFiner {
                     .into_iter()
                     .min_by_key(|(_, count)| *count)
                     .map(|x| x.0)
-                    .ok_or("No servers available".into())
+                    .ok_or(anyhow!("No servers available"))
             }
         }
     }
@@ -181,7 +182,7 @@ impl ServerFinder for GeoServerFinder {
     async fn find_server(
         &mut self,
         connection: &Connection,
-    ) -> Result<MinecraftServer, Box<dyn Error>> {
+    ) -> anyhow::Result<MinecraftServer> {
         let is_local = match connection.addr.ip() {
             IpAddr::V4(ipv4) => {
                 // Check for loopback, private, or link-local ranges

@@ -7,7 +7,7 @@ use hickory_resolver::{
     error::ResolveError,
     proto::rr::rdata::SRV,
 };
-use rand::Rng;
+use rand::{Rng, RngExt};
 use rand::seq::SliceRandom;
 
 #[derive(Debug, thiserror::Error)]
@@ -126,13 +126,13 @@ fn pick_srv<'a>(records: &'a [&'a SRV]) -> Option<&'a SRV> {
     let total_weight: u32 = same_prio.iter().map(|r| r.weight() as u32).sum();
     if total_weight == 0 {
         // Uniform shuffle
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         same_prio.shuffle(&mut rng);
         return same_prio.into_iter().next();
     }
 
-    let mut rng = rand::thread_rng();
-    let mut pick = rng.gen_range(0..total_weight);
+    let mut rng = rand::rng();
+    let mut pick = rng.random_range(0..total_weight);
     for r in same_prio {
         let w = r.weight() as u32;
         if pick < w {

@@ -14,8 +14,11 @@ serde_yaml = "0.9.34"
 async-trait = "0.1.88"
 futures = "0.3.31"
 hickory-resolver = { version = "0.24", features = ["tokio-runtime"] }
-rand = "0.8.5"
-reqwest = { version = "0.12.23", features = ["json"] }
+rand = "0.10.0"
+reqwest = { version = "0.13.2", features = ["json"] }
 redb = "3.0.1"
 tempfile = "3.21.0"
-pumpkin-protocol = { git = "https://github.com/Pumpkin-MC/Pumpkin", rev = "726947a8", default-features = false, features = ["serverbound", "clientbound"]}
+tokio-util = "0.7.18"
+bytes = "1.11.1"
+anyhow = { version = "1.0.102", features = ["backtrace"] }
+uuid = { version = "1.21.0", features = ["v4"] }

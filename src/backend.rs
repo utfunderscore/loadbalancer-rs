@@ -1,12 +1,6 @@
 use crate::address_resolver::{resolve_host_port, EndpointError, ResolvedEndpoint};
 use crate::connection::Connection;
 use log::debug;
-use pumpkin_protocol::{
-    ClientPacket, ConnectionState, RawPacket, ServerPacket, codec::var_int::VarInt,
-    java::client::status::CStatusResponse, java::packet_decoder::TCPNetworkDecoder,
-    java::packet_encoder::TCPNetworkEncoder, java::server::handshake::SHandShake,
-    java::server::status::SStatusRequest,
-};
 use serde_json::Value;
 use std::error::Error;
 use tokio::io::{BufReader, BufWriter};
@@ -26,71 +20,72 @@ impl MinecraftServer {
     pub async fn get_player_count(&self) -> Result<u32, Box<dyn Error>> {
         debug!("Getting player count from {}", self.address);
 
-        let (hostname, port) = self.get_host_and_port().await?;
-
-        debug!("{}:{}", hostname, port);
-
-        let stream = TcpStream::connect((hostname.clone(), port)).await?;
-
-        debug!("Connected to server");
-
-        let (reader, writer) = stream.into_split();
-
-        let mut stream_writer = TCPNetworkEncoder::new(BufWriter::new(writer));
-        let mut stream_reader = TCPNetworkDecoder::new(BufReader::new(reader));
-
-        let handshake_packet = SHandShake {
-            protocol_version: VarInt(772),
-            server_address: hostname.to_string(),
-            server_port: port,
-            next_state: ConnectionState::Status,
-        };
-
-        debug!("Sending handshake packet");
-        Self::send_packet(&mut stream_writer, &handshake_packet).await?;
-
-        debug!("Sending status packet");
-        Self::send_packet(&mut stream_writer, &SStatusRequest).await?;
-
-        debug!("Waiting for response");
-
-        let packet: RawPacket = stream_reader.get_raw_packet().await?;
-
-        let bytebuf = &packet.payload[..];
-        let packet = CStatusResponse::read(bytebuf)?;
-
-        let response = serde_json::from_str::<'_, Value>(&packet.json_response)?;
-
-        let players = response
-            .get("players")
-            .ok_or("Response did not contain 'players' field")?;
-
-        let online_field = players
-            .get("online")
-            .ok_or("Response did not contain 'online' field")?;
-
-        let online = online_field.as_u64().ok_or("'online' field is not a u64")? as u32;
-        Ok(online)
+        // let (hostname, port) = self.get_host_and_port().await?;
+        //
+        // debug!("{}:{}", hostname, port);
+        //
+        // let stream = TcpStream::connect((hostname.clone(), port)).await?;
+        //
+        // debug!("Connected to server");
+        //
+        // let (reader, writer) = stream.into_split();
+        //
+        // let mut stream_writer = TCPNetworkEncoder::new(BufWriter::new(writer));
+        // let mut stream_reader = TCPNetworkDecoder::new(BufReader::new(reader));
+        //
+        // let handshake_packet = SHandShake {
+        //     protocol_version: VarInt(772),
+        //     server_address: hostname.to_string(),
+        //     server_port: port,
+        //     next_state: ConnectionState::Status,
+        // };
+        //
+        // debug!("Sending handshake packet");
+        // Self::send_packet(&mut stream_writer, &handshake_packet).await?;
+        //
+        // debug!("Sending status packet");
+        // Self::send_packet(&mut stream_writer, &SStatusRequest).await?;
+        //
+        // debug!("Waiting for response");
+        //
+        // let packet: RawPacket = stream_reader.get_raw_packet().await?;
+        //
+        // let bytebuf = &packet.payload[..];
+        // let packet = CStatusResponse::read(bytebuf)?;
+        //
+        // let response = serde_json::from_str::<'_, Value>(&packet.json_response)?;
+        //
+        // let players = response
+        //     .get("players")
+        //     .ok_or("Response did not contain 'players' field")?;
+        //
+        // let online_field = players
+        //     .get("online")
+        //     .ok_or("Response did not contain 'online' field")?;
+        //
+        // let online = online_field.as_u64().ok_or("'online' field is not a u64")? as u32;
+        // Ok(online)
+        Ok(0)
     }
 
-    pub async fn get_host_and_port(&self) -> Result<(String, u16), Box<dyn Error>> {
+    pub async fn get_host_and_port(&self) -> anyhow::Result<(String, u16)> {
         let result = resolve_host_port(&self.address, "minecraft", "tcp", 25565).await?;
 
         Ok((result.ip.to_string(), result.port))
     }
-    async fn send_packet<PACKET>(
-        stream_writer: &mut TCPNetworkEncoder<BufWriter<OwnedWriteHalf>>,
-        packet: &PACKET,
-    ) -> Result<(), Box<dyn Error>>
-    where
-        PACKET: ClientPacket,
-    {
-        let mut buffer = Vec::new();
-        Connection::write_packet(packet, &mut buffer)?;
-
-        stream_writer.write_packet(buffer.into()).await?;
-        Ok(())
-    }
+    // async fn send_packet<PACKET>(
+    //     stream_writer: &mut TCPNetworkEncoder<BufWriter<OwnedWriteHalf>>,
+    //     packet: &PACKET,
+    // ) -> Result<(), Box<dyn Error>>
+    // where
+    //     PACKET: ClientPacket,
+    // {
+    //     let mut buffer = Vec::new();
+    //     Connection::write_packet(packet, &mut buffer)?;
+    //
+    //     stream_writer.write_packet(buffer.into()).await?;
+    //     Ok(())
+    // }
 }
 
 #[cfg(test)]

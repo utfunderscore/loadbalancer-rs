@@ -5,9 +5,10 @@ pub mod connection;
 pub mod finder;
 mod geo_api;
 pub mod status;
+pub mod protocol;
 
 use crate::config::{
-    ConfigError, LoadBalancerConfig, format_concise_error_report, print_error_report,
+    format_concise_error_report, print_error_report, ConfigError, LoadBalancerConfig,
 };
 use crate::connection::Connection;
 use crate::finder::ServerFinder;
@@ -19,7 +20,8 @@ use tokio::sync::Mutex;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    simple_logger::init_with_level(log::Level::Debug).unwrap();
+
+
 
     let config = LoadBalancerConfig::load("config.yml");
     if let Err(err) = config {
@@ -35,6 +37,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             _ => eprintln!("Error: {}", err),
         }
     } else if let Ok(config) = config {
+        simple_logger::init_with_level(config.get_log_level())?;
+
         let motd = config.motd.clone();
         let server_finder: Arc<Mutex<Box<dyn ServerFinder>>> =
             Arc::new(Mutex::new(finder::get_server_finder(config)?));
